@@ -15,6 +15,9 @@ endif()
 set(PICO_BOARD pico CACHE STRING "Board type")
 
 cmake_minimum_required(VERSION 3.12)
+# SSTV decoder sources are absent from this repository snapshot. Keep SSTV
+# optional so the core receiver can still be built.
+option(PICORX_ENABLE_SSTV "Build the optional SSTV decoder" OFF)
 set(FETCHCONTENT_QUIET FALSE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -53,7 +56,7 @@ file(GLOB_RECURSE U8G2_SRCS
 
 file(GLOB_RECURSE U8G2_HDRS
     CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/external/u8g2/csrc/*.c"
+    "${CMAKE_CURRENT_LIST_DIR}/external/u8g2/csrc/*.h"
 )
 
 add_library(u8g2)
@@ -85,9 +88,22 @@ set(PICORX_SRCS
     ${CMAKE_CURRENT_LIST_DIR}/usb_descriptors.c
     ${CMAKE_CURRENT_LIST_DIR}/usb_audio_device.c
     ${CMAKE_CURRENT_LIST_DIR}/ring_buffer_lib.c
-    ${CMAKE_CURRENT_LIST_DIR}/codecs/decode_sstv.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/codecs/cordic.cpp
 )
+
+if(PICORX_ENABLE_SSTV)
+    foreach(codec_file
+        "${CMAKE_CURRENT_LIST_DIR}/codecs/decode_sstv.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/codecs/cordic.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/codecs/decode_sstv.h")
+        if(NOT EXISTS "${codec_file}")
+            message(FATAL_ERROR "PICORX_ENABLE_SSTV requires missing file: ${codec_file}")
+        endif()
+    endforeach()
+    list(APPEND PICORX_SRCS
+        ${CMAKE_CURRENT_LIST_DIR}/codecs/decode_sstv.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/codecs/cordic.cpp)
+    add_compile_definitions(PICORX_ENABLE_SSTV)
+endif()
 
 set(PICORX_LIBS
     pico_stdlib

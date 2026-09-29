@@ -14,7 +14,9 @@
 #include "ui.h"
 #include "pins.h"
 #define SPI_PORT spi1
+#ifdef PICORX_ENABLE_SSTV
 #include "codecs/decode_sstv.h"
+#endif
 
 waterfall::waterfall()
 {
@@ -277,6 +279,7 @@ void waterfall::update_spectrum(rx &receiver, s_settings &ui_settings, rx_settin
     if(!power_state) return;
 
     //state machine to select other display options
+#ifdef PICORX_ENABLE_SSTV
     switch(m_aux_display_state)
     {
       case waterfall_active:
@@ -301,6 +304,7 @@ void waterfall::update_spectrum(rx &receiver, s_settings &ui_settings, rx_settin
       decode_sstv(receiver);
       return;
     }
+#endif
     
     //update spectrum and waterfall display
     const uint16_t scope_fg = display->colour565(255, 255, 255);
@@ -530,6 +534,7 @@ void waterfall::update_spectrum(rx &receiver, s_settings &ui_settings, rx_settin
   //sstv_decoder.set_auto_slant_correction(ENABLE_SLANT_CORRECTION);
   //sstv_decoder.set_timeout_seconds(LOST_SIGNAL_TIMEOUT_SECONDS);
 
+#ifdef PICORX_ENABLE_SSTV
 #define STRETCH true
 void waterfall::decode_sstv(rx &receiver)
 {
@@ -704,3 +709,4 @@ void waterfall::decode_sstv(rx &receiver)
       }
    }
 }
+#endif
