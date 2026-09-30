@@ -2299,7 +2299,7 @@ bool ui::bands_menu(bool &ok)
     //chose menu item
     if(ui_state == select_menu_item)
     {
-      if(menu_entry("Bands", "Band 1#Band 2#Band 3#Band 4#Band 5#Band 6#Band 7#", &menu_selection, ok))
+      if(menu_entry("Bands", "Band 1#Band 2#Band 3#Band 4#", &menu_selection, ok))
       {
         if(ok) 
         {
@@ -2335,15 +2335,6 @@ bool ui::bands_menu(bool &ok)
             break;
           case 3 : 
             done = number_entry("Band 4 <=", "%ikHz", 0, 255, 125, settings.global.band4, ok, changed);
-            break;
-          case 4 :
-            done = number_entry("Band 5 <=", "%ikHz", 0, 255, 125, settings.global.band5, ok, changed);
-            break;
-          case 5 : 
-            done = number_entry("Band 6 <=", "%ikHz", 0, 255, 125, settings.global.band6, ok, changed);
-            break;
-          case 6 :  
-            done = number_entry("Band 7 <=", "%ikHz", 0, 255, 125, settings.global.band7, ok, changed);
             break;
         }
         if(done)
@@ -2679,9 +2670,18 @@ ui::ui(rx_settings & settings_to_apply, rx_status & status, rx &receiver, uint8_
   zoom(zoom),
   waterfall_inst(waterfall_inst)
 {
-  u8g2_Setup_ssd1306_i2c_128x64_noname_f(&u8g2, U8G2_R0,
-                                         u8x8_byte_pico_hw_i2c,
-                                         u8x8_gpio_and_delay_pico);
+  if(settings.global.oled_type)
+  {
+    u8g2_Setup_sh1106_i2c_128x64_noname_f(&u8g2, U8G2_R0,
+                                          u8x8_byte_pico_hw_i2c,
+                                          u8x8_gpio_and_delay_pico);
+  }
+  else
+  {
+    u8g2_Setup_ssd1306_i2c_128x64_noname_f(&u8g2, U8G2_R0,
+                                          u8x8_byte_pico_hw_i2c,
+                                          u8x8_gpio_and_delay_pico);
+  }
   gpio_init(24);
   gpio_set_dir(24, GPIO_IN);
   gpio_pull_down(24);

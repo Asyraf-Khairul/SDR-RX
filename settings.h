@@ -125,10 +125,10 @@ const s_settings default_settings = {
   0,  //tft_driver
   62, //gain_cal
   0,  //ppm
-  0x02, //band1
-  0x04, //band2
-  0x08, //band3
-  0x10, //band4
+  0x10, //band1 = 2MHz
+  0x20, //band2 = 4MHz
+  0x40, //band3 = 8MHz
+  0x80, //band4 = 16MHz
   0x20, //band5
   0x40, //band6
   0x80, //band7
@@ -158,7 +158,7 @@ const s_settings default_settings = {
   0,  //encoder_resolution
   0,  //swap_iq
   0,  //flip_oled
-  0,  //oled_type = ssd1306
+  1,  //oled_type = sh1106
   0,  //enable_test_tone
   0,  //tx_modulation
   0,  //enable_external_nco

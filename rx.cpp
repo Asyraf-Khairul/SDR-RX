@@ -200,60 +200,40 @@ void rx::apply_settings()
    if(sem_try_acquire(&settings_semaphore))
    {
 
-      // Select the 0-2MHz low-pass filter for all frequencies in this range.
-      // Bit order is GP2 (BAND_0), GP3 (BAND_1), GP4 (BAND_2).
-      if(settings_to_apply.tuned_frequency_Hz <= 2000000.0)
+      // Select the LPF range. Bit order is GP2 (BAND_0), GP3 (BAND_1), GP4 (BAND_2).
+      if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_4_limit * 125000))
       {
+        // Above 16MHz: 000
         gpio_put(PIN_BAND_0, 0);
         gpio_put(PIN_BAND_1, 0);
-        gpio_put(PIN_BAND_2, 1);
-      }
-      else if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_7_limit * 125000))
-      {
-        gpio_put(PIN_BAND_0, 0);
-        gpio_put(PIN_BAND_1, 0);
-        gpio_put(PIN_BAND_2, 0);
-      }
-      else if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_6_limit * 125000))
-      {
-        gpio_put(PIN_BAND_0, 1);
-        gpio_put(PIN_BAND_1, 0);
-        gpio_put(PIN_BAND_2, 0);
-      }
-      else if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_5_limit * 125000))
-      {
-        gpio_put(PIN_BAND_0, 0);
-        gpio_put(PIN_BAND_1, 1);
-        gpio_put(PIN_BAND_2, 0);
-      }
-      else if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_4_limit * 125000))
-      {
-        gpio_put(PIN_BAND_0, 1);
-        gpio_put(PIN_BAND_1, 1);
         gpio_put(PIN_BAND_2, 0);
       }
       else if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_3_limit * 125000))
       {
-        gpio_put(PIN_BAND_0, 0);
+        // 8-16MHz: 100
+        gpio_put(PIN_BAND_0, 1);
         gpio_put(PIN_BAND_1, 0);
-        gpio_put(PIN_BAND_2, 1);
+        gpio_put(PIN_BAND_2, 0);
       }
       else if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_2_limit * 125000))
       {
-        gpio_put(PIN_BAND_0, 1);
-        gpio_put(PIN_BAND_1, 0);
-        gpio_put(PIN_BAND_2, 1);
+        // 4-8MHz: 010
+        gpio_put(PIN_BAND_0, 0);
+        gpio_put(PIN_BAND_1, 1);
+        gpio_put(PIN_BAND_2, 0);
       }
       else if(settings_to_apply.tuned_frequency_Hz > (settings_to_apply.band_1_limit * 125000))
       {
-        gpio_put(PIN_BAND_0, 0);
+        // 2-4MHz: 110
+        gpio_put(PIN_BAND_0, 1);
         gpio_put(PIN_BAND_1, 1);
-        gpio_put(PIN_BAND_2, 1);
+        gpio_put(PIN_BAND_2, 0);
       }
       else
       {
-        gpio_put(PIN_BAND_0, 1);
-        gpio_put(PIN_BAND_1, 1);
+        // 0-2MHz: 001
+        gpio_put(PIN_BAND_0, 0);
+        gpio_put(PIN_BAND_1, 0);
         gpio_put(PIN_BAND_2, 1);
       }
 

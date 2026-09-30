@@ -129,7 +129,22 @@ void autosave_restore_settings(s_settings &settings)
   else
   {
     memcpy(&settings, autosave_memory[latest_channel], sizeof(s_settings));
+
+    // Migrate the original seven-band defaults to the five LPF ranges.
+    if(settings.global.band1 == 0x02 && settings.global.band2 == 0x04 &&
+       settings.global.band3 == 0x08 && settings.global.band4 == 0x10 &&
+       settings.global.band5 == 0x20 && settings.global.band6 == 0x40 &&
+       settings.global.band7 == 0x80)
+    {
+      settings.global.band1 = 0x10; // 2MHz
+      settings.global.band2 = 0x20; // 4MHz
+      settings.global.band3 = 0x40; // 8MHz
+      settings.global.band4 = 0x80; // 16MHz
+    }
   }
+
+  // This build targets the SH1106 OLED fitted to the receiver.
+  settings.global.oled_type = 1;
 
 }
 
