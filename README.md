@@ -1,68 +1,149 @@
-# SDR RX prototype: bring-up and diagnostic log
+# SDR-RX
 
-Last updated: 5 October 2026 (Auckland, New Zealand).
+SDR receiver firmware for a Raspberry Pi Pico (RP2040), adapted from
+[Jon Dawson's PicoRX](https://github.com/dawsonjon/PicoRX) for a final-year
+electrical engineering prototype.
 
-This project adapts Jon Dawson's PicoRX firmware to a four-board receiver built on perforated boards for a final-year electrical engineering project. The boards are the antenna connector/optional LNA, low-pass filter (LPF) bank, Tayloe quadrature sampling mixer, and UI/Pico board. The UI board distributes 5 V and a common ground to the other boards in a star arrangement. RF, LO, and I/Q signals travel between boards through jumper cables.
+The prototype has four boards: an antenna connector/optional LNA, a low-pass
+filter bank, a Tayloe quadrature sampling mixer, and a Pico/UI board. The
+recorded bench setup uses the LPF, mixer, and Pico/UI boards, with a signal
+generator replacing the antenna.
 
-The current bench test uses **only the LPF, mixer, and UI/Pico boards**. A Tektronix AFG1022 substitutes for the antenna at 756 kHz. There is no preamplifier in this three-board setup. The objective is to hear a 1 kHz tone from a known AM test signal before attempting off-air reception of RNZ National on 756 kHz.
+## Project status
 
-## Expected signal path
+Software checks on **19 October 2026** passed the RP2040 release build and all
+**15 host DSP regression scenarios**. The DSP includes a fix for division by
+zero when I/Q correction is enabled with a silent input.
+
+After the filename cleanup, fresh RP2040 builds with rotary and button tuning
+controls and a Pico 2 ARM build also passed. The RISC-V variant was not rebuilt;
+its toolchain is not installed in the validation environment.
+
+**Physical receiver validation is still pending.** No Pico was connected during
+the software checks, so the firmware was not flashed or tested for real RF
+reception, display operation, USB streaming, or real-time ADC/PWM performance.
+The last recorded bench measurements did not demonstrate recovered audio.
+
+The measurements, hypotheses, and diagnostic steps from 5 October 2026 are
+preserved in [the hardware bring-up log](docs/HARDWARE_BRINGUP.md).
+The project-specific schematic PDF is stored separately and is not included
+in this repository.
+
+## Receiver features
+
+- AM, synchronous AM, LSB, USB, FM, and CW receive modes.
+- ADC I/Q capture, CIC decimation, FFT filtering, AGC, and squelch.
+- Optional I/Q correction, noise reduction, and automatic notch filtering.
+- PWM audio, USB audio/IQ streaming, and CAT control.
+- SH1106/SSD1306 OLED UI, optional TFT spectrum/waterfall display, and rotary
+  or button tuning controls.
+- Frequency memories, saved settings, selectable LPF bands, and an optional
+  Si5351 oscillator.
+
+SSTV is disabled because the decoder sources are absent. Pico 2 ARM and RISC-V
+build configurations are retained; this prototype uses the RP2040 Pico.
+
+## Signal path and connections
 
 ```text
-AFG/antenna -> AC coupling and DC bias -> selected LPF -> Tayloe switch
-            -> I/Q amplifiers -> UI-board ADC input networks -> Pico ADC
-            -> AM processing -> PWM audio output
+Antenna / generator -> AC coupling and DC bias -> selected LPF
+  -> Tayloe mixer and I/Q amplifiers -> Pico ADC input networks
+  -> receiver DSP -> PWM / USB audio
 ```
 
-The AFG produces a 756 kHz carrier with 1 kHz amplitude modulation (AM). One carrier cycle lasts about 1.32 microseconds; one modulation-envelope cycle lasts 1 ms. The firmware's default intermediate frequency (IF) is 4.5 kHz, so a high-side LO is expected near 760.5 kHz when tuned to 756 kHz. Mixing these signals should produce I and Q waveforms near the 4.5 kHz difference, with the 1 kHz AM information preserved in their changing amplitude. The Pico then samples I and Q and extracts the audio.
+Default pin assignments are defined in [board_pins.h](board_pins.h).
 
-At 756 kHz, the firmware drives GP2/GP3/GP4 as `0/0/1`. The LPF selector labels its inputs S2/S1/S0, so the same levels read `1/0/0` in that order. This selects the 0–2 MHz path, B5, in the prototype filter schematic. The relevant firmware is in [rx.cpp](rx.cpp), [settings.h](settings.h), and [pins.h](pins.h).
+| Function | Pico GPIO |
+| --- | --- |
+| Quadrature LO outputs | GP0, GP1 |
+| LPF selection | GP2, GP3, GP4 |
+| I / Q ADC inputs | GP26 / GP27 |
+| PWM audio output | GP16 |
+| OLED I2C SDA / SCL | GP18 / GP19 |
+| Rotary encoder A / B | GP20 / GP21 |
+| Encoder push / back / menu | GP5 / GP17 / GP22 |
 
-## Measurements to date
+For the recorded AM bench test, tune to **756 kHz** and apply a carrier with
+**1 kHz AM**. The default IF magnitude is 4.5 kHz; a high-side LO is approximately
+760.5 kHz. Confirm the actual mixer bias and Pico-side ADC voltages using the
+[bring-up procedure](docs/HARDWARE_BRINGUP.md#next-diagnostic-steps) before
+connecting I/Q signals. The ADC input range is 0–3.3 V.
 
-The table separates observations from conclusions. Scope readings were made under different connection and power conditions; values from those conditions should not be compared as if they were one continuous test.
+## Build
 
-| Stage and condition | Observation | What it establishes |
-| --- | --- | --- |
-| AFG1022, AM enabled | Envelope peak-to-peak spacing was **1 ms**. | The generator is applying approximately **1 kHz AM**. |
-| LPF test, AM disabled, mixer disconnected | About **68 mVpp at LPF input** and **74.4 mVpp at LPF output** in one test; a later isolated output reading was **756 kHz, 50 mVpp**. | The selected LPF path passes the 756 kHz carrier. The small apparent output increase may reflect measurement uncertainty or circuit loading; it is not evidence of active gain. |
-| Pico LO outputs GP0 and GP1 | Both had waveforms near **760 kHz** and approximately **3.6 Vpp**. | The Pico is producing LO signals near the expected 760.5 kHz. This does not yet establish correct LO phase or correct switching at the mixer IC. |
-| Receiver signal-strength indication | Turning the AFG output on/off changed the displayed reading by roughly **1–2 dB**. | The displayed magnitude changed, but this does not prove successful mixing or AM demodulation. |
-| Mixer output terminals, mixer powered, AFG output off, ADC jumpers disconnected | I: **3.84–3.88 V**; Q: **3.78–3.82 V**. | Both raw mixer outputs sit at a high DC level and show only about 40 mVpp variation without the test signal. Their response to a correctly biased RF test signal remains unmeasured. |
-| Mixer RF input, mixer powered, AFG output off | Approximately **3.3 V DC**. With both LO jumpers removed it was **3.26 V DC**. | The LO pins are not directly setting this DC voltage. The RF input may be floating or driven by another circuit connection. |
-| Power-off resistance check | `OL` between mixer RF input and each of the two LO input terminals. | No direct DC short was found between RF and either LO input. This does not rule out capacitive coupling or another wiring fault. |
+Clone with the required display-library submodule:
 
-### Readings that need confirmation
+```sh
+git clone --recurse-submodules https://github.com/Asyraf-Khairul/SDR-RX.git
+cd SDR-RX
+```
 
-- The scope sometimes showed an approximately **760 kHz, 3 Vpp** waveform at the connected LPF-output/mixer-input point. The frequency readout was intermittent. Its origin has not been established.
-- A preliminary probe at the Pico ADC pins showed no clear signal at GP26 and an unstable, high-frequency reading at GP27. Scope triggering and measurement settings were uncertain, so this is not a reliable measurement of the I/Q signals.
-- One RF-input reading of **560 mVpp** was taken while the mixer board was accidentally unpowered; it is excluded from the powered-mixer diagnosis. After correcting the power state, the AFG-off RF-input reading was about **80 mVpp**.
-- With LO jumpers removed, an AFG-on RF-input reading of about **200 mVpp** fell to **0 Vpp** when the AFG output was turned off. That waveform therefore depended on the generator.
-- The scope's automatic frequency function required a large AFG amplitude to lock reliably. The minimum AFG setting of 2 mVpp was difficult to see on the scope. Higher amplitudes were used for signal tracing and may overdrive the high-gain mixer; they are not a suitable full-receiver listening level.
+For an existing clone, run `git submodule update --init --recursive`.
+Use **Pico SDK 2.1.0**, CMake, and an ARM embedded GCC toolchain. The verified
+Windows toolchain is ARM GCC 13.3.1. See [BUILD.rst](BUILD.rst) for dependency
+setup, the TinyUSB version constraint, and Windows PowerShell commands using
+the installed Pico VS Code tools.
 
-## Why a carrier or a small strength change may still be silent
+From a shell with those tools available:
 
-The AM processing in [rx_dsp.cpp](rx_dsp.cpp) subtracts the steady part of the measured amplitude. An **unmodulated** carrier can therefore change the signal-strength indication while producing no tone. Hearing the intended 1 kHz test tone requires the AFG's AM to be enabled **and** valid I/Q signals to reach the ADC and audio path. The 1–2 dB display change alone cannot verify either requirement.
+```sh
+cmake -S . -B build -DPICO_BOARD=pico -DPICO_PLATFORM=rp2040 -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
 
-## Bias circuit and current working hypothesis
+The receiver firmware is **`build/picorx.uf2`**. The separate
+`build/battery_check.uf2` image is a battery diagnostic utility.
 
-The separate **SDR RX Prototype Schematic.pdf** has four pages. Page 4 places the **C33 10 nF input coupling capacitor** and the **R12/R13 10 kΩ divider** on the optional antenna/LNA section. The divider makes approximately 2.5 V from the 5 V supply; the capacitor passes RF while blocking a generator's DC connection. Page 3 shows the mixer and I/Q amplifiers. In Dawson's original no-preamp arrangement, the RF path still receives DC bias. A 10 nF series capacitor alone does **not** create that bias.
+Source filenames have been clarified; CMake targets and firmware output names
+remain compatible. Generated firmware ZIPs are no longer tracked. The optional
+`bash build_all.sh` helper builds all three architectures and writes packages
+under the ignored `build/artifacts/` directory. It also needs a RISC-V toolchain
+and the `zip` utility.
 
-Because the optional antenna/LNA board is absent from the current three-board test, its coupling and bias components are also absent **unless equivalent parts were added elsewhere on the physical boards**. That makes missing or incorrect RF bias the leading hypothesis for the unusual DC readings. A floating RF node could settle near 3.3 V through leakage or another weak path. A wiring connection could also drive it there. The measured 3.26 V does not distinguish those explanations by itself.
+## Flash and test
 
-The raw I/Q outputs near 3.8 V deserve investigation, but they do not by themselves prove the Pico ADC pins are at 3.8 V. Page 1 of the prototype schematic shows **470 Ω in series and 1 kΩ to ground** on each ADC input. If those networks were built as drawn, a steady 3.8 V mixer output would become about `3.8 × 1000 / (470 + 1000) = 2.6 V` at the Pico pin. The actual pin voltage, including signal peaks, must be measured before reconnecting GP26/GP27. The Pico ADC operates over 0–3.3 V.
+1. Hold **BOOTSEL** while connecting the RP2040 Pico over USB.
+2. Copy `build/picorx.uf2` to the **RPI-RP2** drive. The board then reboots.
+3. Verify the display and controls, tune to the test signal, and check recovered
+   audio. Before finalizing the hardware release, also verify LPF selection,
+   saved settings, USB audio/CAT, and stable operation without watchdog resets.
 
-**Current status:** the AFG modulation, selected LPF path, and Pico LO have each shown the expected basic behaviour. A clean 4.5 kHz I/Q signal has not yet been demonstrated, the RF-input DC source has not yet been identified, and audio has not been recovered. This is a hardware diagnosis in progress; neither a missing bias nor a mixer component fault has been confirmed.
+Run the host DSP suite with Python 3 and a **native GNU C++ compiler** on PATH:
 
-## Next diagnostic steps
+```sh
+python tests/run_host_tests.py
+```
 
-1. Keep the GP26/GP27 jumpers disconnected. With power off, temporarily connect a **10 kΩ resistor from the mixer RF input to mixer ground**. Keep the AFG output off and LO jumpers removed, then power the mixer and remeasure RF-input DC. A fall toward 0 V suggests a floating node; a voltage remaining near 3.3 V suggests it is being driven. Remove the temporary resistor after this check.
-2. If the node is driven, disconnect the LPF-to-mixer RF jumper with power off and trace which side supplies the voltage. If it is floating, compare the physical build to the prototype schematic and provide an AC-coupled, approximately 2.5 V RF bias path for this three-board test. Verify the bias with a multimeter before reconnecting ADC jumpers.
-3. With the DC operating point established, set the AFG to **756 kHz sine, AM off, about 2 mVpp**. Probe the mixer I and Q outputs for a signal near **4.5 kHz** and measure their minimum and maximum voltages. Confirm that the 470 Ω/1 kΩ input networks were built as drawn and that the measured mixer output peaks would keep the Pico-side voltage between 0 and 3.3 V. Then reconnect one ADC channel at a time and verify the voltage at its Pico pin.
-4. Once both ADC inputs stay within their allowed range and carry valid I/Q, enable **1 kHz AM** on the AFG. Use AM receive mode, adequate volume, S0 squelch, and automatic notch filtering off. If 1 kHz audio is still absent, trace the PWM audio path from GP16 to the speaker/headphones.
+The 15 scenarios cover silence, I/Q correction and recovery, an unmodulated
+carrier, AM with manual/automatic gain, synchronous AM, FM, LSB/USB reception
+and opposite-sideband rejection, and CW. Results are written to
+`build/host-tests/results.json`. These tests run the receiver DSP with
+single-threaded SDK shims; they do not validate the peripherals or timing.
 
-## References
+## Code guide
 
-- [Jon Dawson's PicoRX hardware design](https://github.com/dawsonjon/PicoRX/wiki/Hardware-Design), including the Tayloe detector, gain, and Pico ADC range.
-- [Original PicoRX schematic](https://github.com/dawsonjon/PicoRX/blob/master/PCB/pico_rx/pipicorx.pdf), including the no-preamp bias arrangement.
-- The project-specific **SDR RX Prototype Schematic.pdf** is currently stored separately from this repository and should accompany this log when reviewing the physical prototype.
+| Files | Responsibility |
+| --- | --- |
+| `receiver_main.cpp` | Startup, core launch, and main scheduling loop. |
+| `receiver.cpp/.h` | ADC capture, tuning, LPF selection, and receiver orchestration. |
+| `receiver_dsp.cpp/.h`, `receiver_constants.h` | Demodulation, AGC, squelch, and sample-rate constants. |
+| `fixed_fft.*`, `fft_bandpass_filter.*`, `cic_compensation.*`, `dsp_math.*`, `noise_reduction.*` | DSP transforms, filters, and numerical helpers. |
+| `quadrature_oscillator.*`, `si5351_oscillator.*`, `receiver_clocks*` | Internal/external LO generation and clock configuration. |
+| `receiver_ui.*`, `oled_display.*`, `tft_display.*`, `spectrum_display.*` | Menus, displays, spectrum, and waterfall. |
+| `input_button.*`, `tuning_encoder.h`, `*_tuning_encoder.*`, `rotary_encoder.pio` | Front-panel inputs. |
+| `receiver_settings.*`, `channel_memory.*`, `settings_storage.*` | Settings, channel memories, and flash-backed storage. |
+| `cat_control.*`, `usb_*`, `tusb_config.h`, `pwm_audio_sink.*` | CAT commands and USB/PWM audio. |
+| `board_pins.h` | Prototype pin assignments. |
+| `external/u8g2/` | Required upstream display library submodule. |
+| `tests/` | Host DSP regression runner and SDK shims. |
+
+The [file audit](docs/FILE_AUDIT.md) lists every removed file, optional components
+that remain in use, and the complete old-to-new filename mapping.
+
+## Attribution
+
+This project builds on [PicoRX by Jon Dawson](https://github.com/dawsonjon/PicoRX).
+Original copyright and license notices remain in the source files. The display
+library and other third-party components retain their upstream notices.
+For the upstream hardware design, see the
+[PicoRX hardware wiki](https://github.com/dawsonjon/PicoRX/wiki/Hardware-Design).

@@ -7,3 +7,6 @@ utils/img/
 __pycache__
 
 build_ninja
+
+# Firmware packages are generated locally, not stored in source control.
+binaries-*.zip

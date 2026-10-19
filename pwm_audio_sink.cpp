@@ -1,5 +1,5 @@
 #include "pwm_audio_sink.h"
-#include "pins.h"
+#include "board_pins.h"
 
 #include "hardware/dma.h"
 #include "hardware/gpio.h"

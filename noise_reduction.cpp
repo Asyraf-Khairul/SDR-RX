@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-#include "utils.h"
+#include "dsp_math.h"
 #include "noise_reduction.h"
 
 const int8_t magnitude_smoothing = 3;
